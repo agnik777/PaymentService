@@ -1,0 +1,30 @@
+# docker-compose.yml
+
+services:
+  candidate-service:
+    build: .
+    environment:
+      PROVIDER_URL: ${PROVIDER_URL}
+    ports:
+      - "8080:8080"
+    volumes:
+      - candidate-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  provider-simulator:
+    image: ghcr.io/fintech-dev-lab/internship-provider-simulator:v0.2.0
+    environment:
+      CALLBACK_URL: http://candidate-service:8080/receipts
+    ports:
+      - "8081:8081"
+    depends_on:
+      candidate-service:
+        condition: service_healthy
+
+volumes:
+  candidate-data:
