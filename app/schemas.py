@@ -5,8 +5,6 @@ Pydantic-схемы для запросов и ответов API.
 Отделены от моделей БД, потому что:
   - Модели БД описывают таблицы (SQLAlchemy).
   - Схемы описывают HTTP-контракт (Pydantic).
-  - Они могут различаться: например, БД хранит provider_payment_id,
-    а в ответе CREATE его может не быть.
 """
 
 from __future__ import annotations
@@ -64,7 +62,6 @@ class CreateOperationRequest(BaseModel):
         numeric = float(value)
         if numeric <= 0:
             raise ValueError("amount должен быть положительным (> 0)")
-
         return value
 
     @field_validator("currency")
@@ -77,13 +74,13 @@ class CreateOperationRequest(BaseModel):
         return upper
 
     model_config = {
-        "populate_by_name": True,  # Разрешает передавать operationId в JSON
+        "populate_by_name": True,
     }
 
 # ── Ответ операции ─────────────────────────────────────────────────────────
 
 class OperationResponse(BaseModel):
-    """Тело ответа для GET/POST /operations."""
+    """Тело ответа для GET /operations/{id} и POST /operations."""
 
     operation_id: str = Field(..., alias="operationId")
     amount: str
@@ -96,7 +93,24 @@ class OperationResponse(BaseModel):
 
     model_config = {
         "populate_by_name": True,
-        "from_attributes": True,  # Позволяет создавать из SQLAlchemy-объекта
+        "from_attributes": True,
+    }
+
+# ── Ответ по событию ───────────────────────────────────────────────────────
+
+class EventResponse(BaseModel):
+    """Одно событие из истории переходов."""
+
+    event_id: int = Field(..., alias="eventId")
+    type: str
+    from_status: Optional[str] = Field(None, alias="fromStatus")
+    to_status: str = Field(..., alias="toStatus")
+    message: Optional[str] = None
+    occurred_at: datetime = Field(..., alias="occurredAt")
+
+    model_config = {
+        "populate_by_name": True,
+        "from_attributes": True,
     }
 
 # ── Ответ с ошибкой ────────────────────────────────────────────────────────
