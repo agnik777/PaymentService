@@ -1,10 +1,6 @@
 # app/schemas.py
 """
 Pydantic-схемы для запросов и ответов API.
-
-Отделены от моделей БД, потому что:
-  - Модели БД описывают таблицы (SQLAlchemy).
-  - Схемы описывают HTTP-контракт (Pydantic).
 """
 
 from __future__ import annotations
@@ -81,6 +77,31 @@ class CreateOperationRequest(BaseModel):
 
 class OperationResponse(BaseModel):
     """Тело ответа для GET /operations/{id} и POST /operations."""
+
+    operation_id: str = Field(..., alias="operationId")
+    amount: str
+    currency: str
+    description: Optional[str] = None
+    status: str
+    provider_payment_id: Optional[str] = Field(None, alias="providerPaymentId")
+    created_at: datetime = Field(..., alias="createdAt")
+    updated_at: datetime = Field(..., alias="updatedAt")
+
+    model_config = {
+        "populate_by_name": True,
+        "from_attributes": True,
+    }
+
+# ── Ответ на submit ────────────────────────────────────────────────────────
+
+class SubmitResponse(BaseModel):
+    """
+    Тело ответа для POST /operations/{id}/submit.
+
+    Содержит все поля OperationResponse, но выделено в отдельную схему,
+    потому что семантика разная: submit возвращает либо 202 (принято
+    в обработку), либо 200 (уже было обработано ранее).
+    """
 
     operation_id: str = Field(..., alias="operationId")
     amount: str
