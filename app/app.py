@@ -16,6 +16,8 @@ from .provider_client import ProviderClient
 from .background import BackgroundProcessor
 from .routers.health import router as health_router
 from .routers.operations import router as operations_router
+from app.routers.receipts import router as receipts_router
+
 
 # ── Lifespan (startup / shutdown) ──────────────────────────────────────────
 
@@ -73,3 +75,4 @@ app = FastAPI(
 # Подключение роутеров
 app.include_router(health_router)
 app.include_router(operations_router)
+app.include_router(receipts_router)

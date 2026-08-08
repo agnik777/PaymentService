@@ -14,6 +14,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select, func
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -293,10 +294,11 @@ async def _save_provider_id_after_submit(
     Сохранить provider_payment_id после успешного вызова провайдера.
 
     Использует отдельную сессию — исходная транзакция уже закоммичена.
-    Проверяет, что операция всё ещё в PROCESSING.
+    Проверяет, что операция всё ещё в PROCESSING: квитанция могла прийти
+    раньше и перевести операцию в финальный статус. В таком случае
+    provider_payment_id НЕ перезаписывается (квитанция уже установила его).
     """
     from app.database import async_session as _session_factory
-    from sqlalchemy import update as sa_update
 
     async with _session_factory() as new_session:
         stmt = (

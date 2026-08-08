@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -48,13 +48,10 @@ class CreateOperationRequest(BaseModel):
         Допустимые примеры: "1000.00", "0.01", "9999999.99"
         Недопустимые:       "-1.00", "0.001", "abc", "0.00", "0"
         """
-        # Проверяем формат: цифры, опционально точка + 1-2 цифры
         if not re.fullmatch(r"\d+(\.\d{1,2})?", value):
             raise ValueError(
                 "amount должен быть положительным числом с не более чем двумя знаками после точки"
             )
-
-        # Проверяем, что число больше нуля
         numeric = float(value)
         if numeric <= 0:
             raise ValueError("amount должен быть положительным (> 0)")
@@ -97,10 +94,6 @@ class OperationResponse(BaseModel):
 class SubmitResponse(BaseModel):
     """
     Тело ответа для POST /operations/{id}/submit.
-
-    Содержит все поля OperationResponse, но выделено в отдельную схему,
-    потому что семантика разная: submit возвращает либо 202 (принято
-    в обработку), либо 200 (уже было обработано ранее).
     """
 
     operation_id: str = Field(..., alias="operationId")
@@ -132,6 +125,53 @@ class EventResponse(BaseModel):
     model_config = {
         "populate_by_name": True,
         "from_attributes": True,
+    }
+
+# ── Запрос callback-квитанции ──────────────────────────────────────────────
+
+class ReceiptRequest(BaseModel):
+    """
+    Тело запроса POST /receipts от провайдера.
+    Провайдер присылает эту квитанцию асинхронно после обработки платежа.
+    """
+
+    provider_payment_id: str = Field(
+        ...,
+        alias="providerPaymentId",
+        min_length=1,
+        description="Идентификатор платежа у провайдера (UUID)",
+    )
+    operation_id: str = Field(
+        ...,
+        alias="operationId",
+        min_length=1,
+        max_length=128,
+        description="Идентификатор операции",
+    )
+    result: Literal["COMPLETED", "REJECTED"] = Field(
+        ...,
+        description="Финальный результат: COMPLETED или REJECTED",
+    )
+    message: Optional[str] = Field(
+        None,
+        description="Пояснение от провайдера",
+    )
+    occurred_at: datetime = Field(
+        ...,
+        alias="occurredAt",
+        description="Время фиксации результата у провайдера",
+    )
+
+    @field_validator("result")
+    @classmethod
+    def validate_result(cls, value: str) -> str:
+        upper = value.upper()
+        if upper not in ("COMPLETED", "REJECTED"):
+            raise ValueError("result должен быть COMPLETED или REJECTED")
+        return upper
+
+    model_config = {
+        "populate_by_name": True,
     }
 
 # ── Ответ с ошибкой ────────────────────────────────────────────────────────
