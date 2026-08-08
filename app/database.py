@@ -2,8 +2,10 @@
 
 """
 Подключение к PostgreSQL: асинхронный движок, сессии, создание таблиц.
+
 Этот модуль — единственная точка входа для работы с БД.
-Все эндпоинты импортируют get_session отсюда.
+Все эндпоинты импортируют get_session из dependencies.py,
+который, в свою очередь, использует async_session отсюда.
 """
 
 from sqlalchemy.ext.asyncio import (
@@ -35,7 +37,6 @@ async def check_db_connection() -> bool:
     """
     Проверка подключения к БД: выполняет SELECT 1.
     Возвращает True, если БД доступна, иначе False.
-    Используется в /health для проверки готовности.
     """
     try:
         async with engine.connect() as conn:
@@ -48,8 +49,6 @@ async def create_tables() -> None:
     """
     Создаёт все таблицы, описанные в моделях, если они ещё не существуют.
     Вызывается при старте приложения (в lifespan).
-    Использует MetaData.create_all — это не полноценная миграция,
-    но для тестового задания допустимо.
     """
     from app.models import Base
 

@@ -3,16 +3,17 @@
 candidate-service — платёжный сервис-посредник.
 
 Точка входа FastAPI-приложения.
+Собирает роутеры и управляет жизненным циклом.
 """
 
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 
 from .config import config
-from .database import check_db_connection, create_tables, close_db
+from .database import create_tables, close_db
+from app.routers.health import router as health_router
+from app.routers.operations import router as operations_router
 
 # ── Lifespan (startup / shutdown) ──────────────────────────────────────────
 
@@ -23,7 +24,6 @@ async def lifespan(app: FastAPI):
 
     При старте:
       - Создаёт таблицы в БД (если их нет).
-      - Выводит информационные сообщения.
 
     При завершении:
       - Закрывает пул соединений с БД.
@@ -51,24 +51,6 @@ app = FastAPI(
 )
 
 
-@app.get("/health")
-async def health():
-    """
-    Проверка готовности сервиса.
-
-    Проверяет подключение к БД.
-    Возвращает 200 OK, если всё в порядке.
-    Возвращает 503 Service Unavailable, если БД недоступна.
-    """
-    db_ok = await check_db_connection()
-
-    if db_ok:
-        return JSONResponse(
-            status_code=200,
-            content={"status": "ok", "database": "connected"},
-        )
-
-    return JSONResponse(
-        status_code=503,
-        content={"status": "error", "database": "disconnected"},
-    )
+# Подключение роутеров
+app.include_router(health_router)
+app.include_router(operations_router)

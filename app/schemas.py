@@ -1,0 +1,110 @@
+# app/schemas.py
+"""
+Pydantic-схемы для запросов и ответов API.
+
+Отделены от моделей БД, потому что:
+  - Модели БД описывают таблицы (SQLAlchemy).
+  - Схемы описывают HTTP-контракт (Pydantic).
+  - Они могут различаться: например, БД хранит provider_payment_id,
+    а в ответе CREATE его может не быть.
+"""
+
+from __future__ import annotations
+
+import re
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field, field_validator
+
+# ── Запрос на создание операции ────────────────────────────────────────────
+
+class CreateOperationRequest(BaseModel):
+    """Тело запроса POST /operations."""
+
+    operation_id: str = Field(
+        ...,
+        alias="operationId",
+        min_length=1,
+        max_length=128,
+        description="Уникальный строковый идентификатор операции, заданный клиентом",
+    )
+    amount: str = Field(
+        ...,
+        description="Положительная десятичная строка, не более 2 знаков после точки",
+    )
+    currency: str = Field(
+        ...,
+        min_length=3,
+        max_length=3,
+        description="Трёхбуквенный код валюты (поддерживается RUB)",
+    )
+    description: Optional[str] = Field(
+        None,
+        max_length=512,
+        description="Произвольное описание операции",
+    )
+
+    @field_validator("amount")
+    @classmethod
+    def validate_amount(cls, value: str) -> str:
+        """
+        Валидация amount: положительное число, не более 2 знаков после точки.
+
+        Допустимые примеры: "1000.00", "0.01", "9999999.99"
+        Недопустимые:       "-1.00", "0.001", "abc", "0.00", "0"
+        """
+        # Проверяем формат: цифры, опционально точка + 1-2 цифры
+        if not re.fullmatch(r"\d+(\.\d{1,2})?", value):
+            raise ValueError(
+                "amount должен быть положительным числом с не более чем двумя знаками после точки"
+            )
+
+        # Проверяем, что число больше нуля
+        numeric = float(value)
+        if numeric <= 0:
+            raise ValueError("amount должен быть положительным (> 0)")
+
+        return value
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, value: str) -> str:
+        """Поддерживается только RUB."""
+        upper = value.upper()
+        if upper != "RUB":
+            raise ValueError("Поддерживается только валюта RUB")
+        return upper
+
+    model_config = {
+        "populate_by_name": True,  # Разрешает передавать operationId в JSON
+    }
+
+# ── Ответ операции ─────────────────────────────────────────────────────────
+
+class OperationResponse(BaseModel):
+    """Тело ответа для GET/POST /operations."""
+
+    operation_id: str = Field(..., alias="operationId")
+    amount: str
+    currency: str
+    description: Optional[str] = None
+    status: str
+    provider_payment_id: Optional[str] = Field(None, alias="providerPaymentId")
+    created_at: datetime = Field(..., alias="createdAt")
+    updated_at: datetime = Field(..., alias="updatedAt")
+
+    model_config = {
+        "populate_by_name": True,
+        "from_attributes": True,  # Позволяет создавать из SQLAlchemy-объекта
+    }
+
+# ── Ответ с ошибкой ────────────────────────────────────────────────────────
+
+class ErrorResponse(BaseModel):
+    """Стандартное тело ошибки."""
+
+    detail: str
+    status_code: int = Field(..., alias="statusCode")
+
+    model_config = {"populate_by_name": True}
