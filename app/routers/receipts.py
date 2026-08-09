@@ -24,6 +24,7 @@ from app.dependencies import get_session
 from app.models import Operation, OperationStatus, Event
 from app.schemas import ReceiptRequest
 
+
 router = APIRouter(prefix="/receipts", tags=["receipts"])
 
 @router.post("", status_code=204)

@@ -1,5 +1,4 @@
 # app/config.py
-
 """
 Централизованные настройки приложения.
 Все параметры читаются из переменных окружения. Это позволяет
@@ -8,6 +7,7 @@
 
 import os
 from dotenv import load_dotenv
+
 
 load_dotenv()
 

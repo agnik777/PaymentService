@@ -1,5 +1,4 @@
 # app/database.py
-
 """
 Подключение к PostgreSQL: асинхронный движок, сессии, создание таблиц.
 """
@@ -10,6 +9,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy import text, select
 
 from .config import config
+
 
 # Асинхронный движок SQLAlchemy
 # pool_size=10 — максимальное количество одновременных соединений

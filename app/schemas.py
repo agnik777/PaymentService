@@ -6,10 +6,11 @@ Pydantic-схемы для запросов и ответов API.
 from __future__ import annotations
 
 import re
+
 from datetime import datetime
 from typing import Optional, Literal
-
 from pydantic import BaseModel, Field, field_validator
+
 
 # ── Запрос на создание операции ────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ class CreateOperationRequest(BaseModel):
         "populate_by_name": True,
     }
 
+
 # ── Ответ операции ─────────────────────────────────────────────────────────
 
 class OperationResponse(BaseModel):
@@ -88,6 +90,7 @@ class OperationResponse(BaseModel):
         "populate_by_name": True,
         "from_attributes": True,
     }
+
 
 # ── Ответ на submit ────────────────────────────────────────────────────────
 
@@ -110,6 +113,7 @@ class SubmitResponse(BaseModel):
         "from_attributes": True,
     }
 
+
 # ── Ответ по событию ───────────────────────────────────────────────────────
 
 class EventResponse(BaseModel):
@@ -126,6 +130,7 @@ class EventResponse(BaseModel):
         "populate_by_name": True,
         "from_attributes": True,
     }
+
 
 # ── Запрос callback-квитанции ──────────────────────────────────────────────
 
@@ -173,6 +178,7 @@ class ReceiptRequest(BaseModel):
     model_config = {
         "populate_by_name": True,
     }
+
 
 # ── Ответ с ошибкой ────────────────────────────────────────────────────────
 

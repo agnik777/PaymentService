@@ -7,8 +7,6 @@ candidate-service — платёжный сервис-посредник.
 обрабатывает сигналы ОС для graceful shutdown.
 """
 
-import signal
-import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI

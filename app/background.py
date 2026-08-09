@@ -17,12 +17,12 @@ import random
 import time
 
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session, get_processing_operations
 from app.models import Operation, OperationStatus
 from app.provider_client import ProviderClient
 from app.logging_config import get_logger
+
 
 logger = get_logger(__name__)
 

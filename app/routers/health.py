@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.database import check_db_connection
 
+
 router = APIRouter(tags=["health"])
 
 @router.get("/health")

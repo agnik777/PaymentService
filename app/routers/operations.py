@@ -10,7 +10,6 @@
 """
 
 from datetime import datetime, timezone
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select, func
@@ -24,6 +23,7 @@ from app.schemas import (
     CreateOperationRequest, OperationResponse, SubmitResponse, EventResponse
 )
 from app.provider_client import ProviderClient, PaymentResult
+
 
 router = APIRouter(prefix="/operations", tags=["operations"])
 

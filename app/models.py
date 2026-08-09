@@ -1,5 +1,4 @@
 # app/models.py
-
 """
 SQLAlchemy-модели для таблиц PostgreSQL.
 
@@ -9,7 +8,6 @@ SQLAlchemy-модели для таблиц PostgreSQL.
   - events          — история переходов между статусами
 """
 
-import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
