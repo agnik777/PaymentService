@@ -167,7 +167,7 @@ class ReceiptRequest(BaseModel):
         description="Время фиксации результата у провайдера",
     )
 
-    @field_validator("result")
+    @field_validator("result", mode="before")
     @classmethod
     def validate_result(cls, value: str) -> str:
         upper = value.upper()

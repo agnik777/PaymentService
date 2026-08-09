@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 
 from app.schemas import ReceiptRequest
 
-
 class TestReceiptRequestValidation:
     """Тесты Pydantic-валидации для ReceiptRequest."""
 
@@ -40,7 +39,12 @@ class TestReceiptRequestValidation:
         assert req.result == "REJECTED"
 
     def test_result_case_insensitive(self):
-        """rejected → REJECTED."""
+        """
+        rejected (нижний регистр) → REJECTED.
+
+        Валидатор @field_validator приводит result к верхнему регистру
+        перед проверкой Literal.
+        """
         req = ReceiptRequest.model_validate({
             "providerPaymentId": "aa5b7856-e9f2-4fd5-955b-38b1f28d9c57",
             "operationId": "op-3",
