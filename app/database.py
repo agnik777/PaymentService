@@ -2,18 +2,12 @@
 
 """
 Подключение к PostgreSQL: асинхронный движок, сессии, создание таблиц.
-
-Этот модуль — единственная точка входа для работы с БД.
-Все эндпоинты импортируют get_session из dependencies.py,
-который, в свою очередь, использует async_session отсюда.
 """
 
 from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
+    AsyncSession, async_sessionmaker, create_async_engine
 )
-from sqlalchemy import text
+from sqlalchemy import text, select
 
 from .config import config
 
@@ -61,3 +55,25 @@ async def close_db() -> None:
     Вызывается при завершении приложения (в lifespan).
     """
     await engine.dispose()
+
+async def get_processing_operations() -> list:
+    """
+    Получить список всех операций в статусе PROCESSING.
+
+    Используется при старте приложения для восстановления
+    незавершённых операций после перезапуска.
+
+    Возвращает список Operation (SQLAlchemy-объектов).
+    Не требует provider_payment_id IS NULL — операция может быть
+    в PROCESSING как с provider_payment_id (ждёт квитанцию),
+    так и без (ждёт вызов провайдера). В обоих случаях фоновый
+    обработчик должен её подхватить.
+    """
+    from app.models import Operation, OperationStatus
+
+    async with async_session() as session:
+        stmt = select(Operation).where(
+            Operation.status == OperationStatus.PROCESSING
+        )
+        result = await session.execute(stmt)
+        return list(result.scalars().all())

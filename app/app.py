@@ -3,9 +3,12 @@
 candidate-service — платёжный сервис-посредник.
 
 Точка входа FastAPI-приложения.
-Собирает роутеры и управляет жизненным циклом, хранит singleton-объекты.
+Собирает роутеры, управляет жизненным циклом, хранит singleton-объекты,
+обрабатывает сигналы ОС для graceful shutdown.
 """
 
+import signal
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,10 +17,13 @@ from .config import config
 from .database import create_tables, close_db
 from .provider_client import ProviderClient
 from .background import BackgroundProcessor
+from .logging_config import setup_logging, get_logger
 from .routers.health import router as health_router
 from .routers.operations import router as operations_router
-from app.routers.receipts import router as receipts_router
+from .routers.receipts import router as receipts_router
 
+
+logger = get_logger(__name__)
 
 # ── Lifespan (startup / shutdown) ──────────────────────────────────────────
 
@@ -27,22 +33,25 @@ async def lifespan(app: FastAPI):
     Контекст жизненного цикла приложения.
 
     Startup:
+      - Настраивает структурированное логирование.
       - Создаёт таблицы в БД.
-      - Создаёт и сохраняет singleton-объекты (ProviderClient, BackgroundProcessor).
-      - Запускает фоновый обработчик PROCESSING-операций.
+      - Создаёт singleton-объекты.
+      - Запускает фоновый обработчик (с восстановлением PROCESSING-операций).
 
     Shutdown:
-      - Останавливает фоновый обработчик.
-      - Закрывает HTTP-клиент провайдера.
-      - Закрывает пул соединений с БД.
+      - Корректно останавливает фоновый обработчик.
+      - Закрывает HTTP-клиент и пул БД.
     """
-    print("[lifespan] candidate-service запускается...")
-    print(f"[lifespan] PROVIDER_URL = {config.PROVIDER_URL}")
+
+    setup_logging()
+
+    logger.info("candidate-service запускается...")
+    logger.info("PROVIDER_URL=%s", config.PROVIDER_URL)
 
     # Создаём таблицы (CREATE TABLE IF NOT EXISTS)
-    print("[lifespan] Создание таблиц в БД...")
+    logger.info("Создание таблиц в БД...")
     await create_tables()
-    print("[lifespan] Таблицы созданы (или уже существовали).")
+    logger.info("Таблицы созданы (или уже существовали)")
 
     # Создание singleton-объектов и сохранение в app.state
     provider_client = ProviderClient()
@@ -51,17 +60,17 @@ async def lifespan(app: FastAPI):
     app.state.provider_client = provider_client
     app.state.background_processor = background_processor
 
-    # Запуск фонового обработчика
+    # Запуск фонового обработчика (включает _recover_operations)
     await background_processor.start()
 
     yield  # Приложение работает
 
     # Shutdown
-    print("[lifespan] candidate-service завершает работу...")
+    logger.info("candidate-service завершает работу...")
     await background_processor.stop()
     await provider_client.close()
     await close_db()
-    print("[lifespan] Ресурсы освобождены.")
+    logger.info("Все ресурсы освобождены")
 
 
 app = FastAPI(
