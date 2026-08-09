@@ -22,7 +22,8 @@ from app.models import Operation, OperationStatus, Event, SubmitIntent
 from app.schemas import (
     CreateOperationRequest, OperationResponse, SubmitResponse, EventResponse
 )
-from app.provider_client import ProviderClient, PaymentResult
+from app.provider_client import ProviderClient
+from app.metrics import operations_created, submit_attempts, processing_gauge
 
 
 router = APIRouter(prefix="/operations", tags=["operations"])
@@ -116,7 +117,7 @@ async def create_operation(
     # 2. Текущее время в UTC — единое для всех записей в рамках этой транзакции.
     now = datetime.now(timezone.utc)
 
-    # 3. Создать объект Operation в статусе CREATED.
+    # 3. Создание операции.
     operation = Operation(
         operation_id=body.operation_id,
         amount=body.amount,
@@ -140,6 +141,9 @@ async def create_operation(
         occurred_at=now,
     )
     session.add(event)
+
+    # Метрика
+    operations_created.labels(status="CREATED").inc()
 
     # 5. Коммит и ответ.
     return OperationResponse.model_validate(operation)
@@ -225,6 +229,7 @@ async def submit_operation(
     operation = result.scalar_one_or_none()
 
     if operation is None:
+        submit_attempts.labels(result="not_found").inc()
         raise HTTPException(
             status_code=404,
             detail=f"Операция с operationId='{operation_id}' не найдена",
@@ -232,6 +237,10 @@ async def submit_operation(
 
     # 2. Если статус уже не CREATED — возвращаем текущее состояние (200 OK).
     if operation.status != OperationStatus.CREATED:
+        if operation.status == OperationStatus.PROCESSING:
+            submit_attempts.labels(result="already_processing").inc()
+        else:
+            submit_attempts.labels(result="already_final").inc()
         return SubmitResponse.model_validate(operation)
 
     # 3. Операция в CREATED — атомарно переводим в PROCESSING.
@@ -263,6 +272,10 @@ async def submit_operation(
     #    После этого блокировка снимается, и другие запросы
     #    увидят статус PROCESSING и вернут 200.
     await session.commit()
+
+    # Метрики
+    submit_attempts.labels(result="accepted").inc()
+    processing_gauge.inc()
 
     # e. ПОСЛЕ коммита: вызываем провайдера.
     #    Получаем ProviderClient из app-состояния.

@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_session
 from app.models import Operation, OperationStatus, Event
 from app.schemas import ReceiptRequest
+from app.metrics import operations_created, receipts_processed, processing_gauge
 
 
 router = APIRouter(prefix="/receipts", tags=["receipts"])
@@ -63,6 +64,7 @@ async def receive_receipt(
     operation = result.scalar_one_or_none()
 
     if operation is None:
+        receipts_processed.labels(result="not_found").inc()
         raise HTTPException(
             status_code=404,
             detail=f"Операция с operationId='{body.operation_id}' не найдена",
@@ -73,6 +75,7 @@ async def receive_receipt(
         operation.provider_payment_id is not None
         and operation.provider_payment_id != body.provider_payment_id
     ):
+        receipts_processed.labels(result="conflict").inc()
         raise HTTPException(
             status_code=409,
             detail=(
@@ -94,10 +97,12 @@ async def receive_receipt(
     if operation.status in OperationStatus.FINAL:
         # 4a. Тот же результат — молча принимаем, без нового события.
         if operation.status == body.result:
+            receipts_processed.labels(result="ignored_duplicate").inc()
             await session.commit()
             return Response(status_code=204)
 
         # 4b. Противоположный результат — фиксируем как проигнорированный.
+        receipts_processed.labels(result="ignored_duplicate").inc()
         await _add_event_static(
             session=session,
             operation_id=body.operation_id,
@@ -130,6 +135,11 @@ async def receive_receipt(
         ),
         occurred_at=now,
     )
+
+    # Метрики
+    operations_created.labels(status=body.result).inc()
+    receipts_processed.labels(result=body.result.lower()).inc()
+    processing_gauge.dec()
 
     await session.commit()
     return Response(status_code=204)

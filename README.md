@@ -473,6 +473,74 @@ for line in sys.stdin:
 | Контейнер падает при старте | `docker compose logs candidate-service` |
 | Таблицы не создаются | Проверить `docker compose logs candidate-service \| grep "Создание таблиц"` |
 
+
+## Мониторинг и метрики
+
+Сервис экспортирует Prometheus-метрики на эндпоинте `GET /metrics`.
+
+### Доступные метрики
+
+| Метрика | Тип | Метки | Описание |
+|---------|-----|-------|----------|
+| `candidate_operations_total` | Counter | `status` | Количество операций по статусу |
+| `candidate_submit_attempts_total` | Counter | `result` | Попытки отправки (accepted, retryable_error, etc.) |
+| `candidate_receipts_total` | Counter | `result` | Квитанции (completed, rejected, ignored_duplicate, conflict) |
+| `candidate_operations_processing` | Gauge | — | Текущее количество PROCESSING-операций |
+| `candidate_http_request_duration_seconds` | Histogram | `method`, `endpoint` | Длительность HTTP-запросов |
+
+### Пример запроса
+
+```bash
+curl -s http://localhost:8080/metrics
+```
+
+Пример вывода:
+
+```
+# HELP candidate_operations_total Total number of operations created
+# TYPE candidate_operations_total counter
+candidate_operations_total{status="CREATED"} 15.0
+candidate_operations_total{status="COMPLETED"} 12.0
+candidate_operations_total{status="REJECTED"} 3.0
+
+# HELP candidate_operations_processing Current number of operations in PROCESSING status
+# TYPE candidate_operations_processing gauge
+candidate_operations_processing 2.0
+
+# HELP candidate_http_request_duration_seconds HTTP request duration in seconds
+# TYPE candidate_http_request_duration_seconds histogram
+candidate_http_request_duration_seconds_bucket{le="0.01",method="POST",endpoint="/operations"} 3.0
+...
+```
+
+### Интеграция с Prometheus
+
+Добавить в `prometheus.yml`:
+
+```yaml
+scrape_configs:
+  - job_name: "candidate-service"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["candidate-service:8080"]
+```
+
+### Ключевые алерты (примеры PromQL)
+
+```promql
+# Резкий рост незавершённых операций
+candidate_operations_processing > 10
+
+# Высокая доля ошибок отправки
+rate(candidate_submit_attempts_total{result="retryable_error"}[5m])
+  /
+rate(candidate_submit_attempts_total[5m]) > 0.5
+
+# Медленные запросы (p99 > 2 секунды)
+histogram_quantile(0.99,
+  rate(candidate_http_request_duration_seconds_bucket[5m])
+) > 2
+```
 ## Остановка
 
 ```bash

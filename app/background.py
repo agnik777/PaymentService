@@ -22,6 +22,7 @@ from app.database import async_session, get_processing_operations
 from app.models import Operation, OperationStatus
 from app.provider_client import ProviderClient
 from app.logging_config import get_logger
+from app.metrics import submit_attempts
 
 
 logger = get_logger(__name__)
@@ -216,6 +217,7 @@ class BackgroundProcessor:
 
         # Проверяем лимит попыток
         if attempt > MAX_ATTEMPTS:
+            submit_attempts.labels(result="max_attempts_exceeded").inc()
             logger.warning(
                 "Превышен лимит попыток (%d), операция остаётся в PROCESSING",
                 MAX_ATTEMPTS,
@@ -236,6 +238,7 @@ class BackgroundProcessor:
         )
 
         if result.success and result.provider_payment_id is not None:
+            submit_attempts.labels(result="accepted").inc()
             saved = await self._save_provider_payment_id(
                 op_id, result.provider_payment_id
             )
@@ -252,6 +255,7 @@ class BackgroundProcessor:
                 )
 
         elif result.retryable:
+            submit_attempts.labels(result="retryable_error").inc()
             # Ошибка, можно повторить — планируем следующую попытку
             self._attempts[op_id] = attempt + 1
             delay = self._backoff_delay(attempt)
@@ -265,6 +269,7 @@ class BackgroundProcessor:
                 },
             )
         else:
+            submit_attempts.labels(result="non_retryable_error").inc()
             # Не-retryable ошибка — логируем, но не повторяем
             logger.error(
                 "Не-retryable ошибка: %s",
